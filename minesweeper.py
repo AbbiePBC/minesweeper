@@ -91,6 +91,10 @@ class Sentence():
     and a count of the number of those cells which are mines.
     """
 
+    # The idea is to make the sentence as simple as possible,
+    # so that either the count of mines == the number of cells, and they're all mines,
+    # or the count of mines == 0, and they're all safe.
+
     def __init__(self, cells, count):
         self.cells = set(cells)
         self.count = count
@@ -105,27 +109,45 @@ class Sentence():
         """
         Returns the set of all cells in self.cells known to be mines.
         """
-        raise NotImplementedError
+        # If the number of cells in the sentence is equal to the count,
+        # then all cells in the sentence must be mines.
+        if len(self.cells) == self.count:
+            return self.cells
+        # Otherwise, we cannot infer that any cells are mines.
+        else:
+            return set()
 
     def known_safes(self):
         """
         Returns the set of all cells in self.cells known to be safe.
         """
-        raise NotImplementedError
+        # If the count is 0, then all cells in the sentence must be safe.
+        if self.count == 0:
+            return self.cells
+        # Otherwise, we cannot infer that any cells are safe.
+        else:
+            return set()
 
     def mark_mine(self, cell):
         """
         Updates internal knowledge representation given the fact that
         a cell is known to be a mine.
         """
-        raise NotImplementedError
+        # If the cell is in the sentence, remove it,
+        # and remove a mine from the count.
+        if cell in self.cells:
+            self.cells.remove(cell)
+            self.count -= 1
 
     def mark_safe(self, cell):
         """
         Updates internal knowledge representation given the fact that
         a cell is known to be safe.
         """
-        raise NotImplementedError
+        # If the cell is in the sentence, remove it,
+        # but leave the count unchanged.
+        if cell in self.cells:
+            self.cells.remove(cell)
 
 
 class MinesweeperAI():
