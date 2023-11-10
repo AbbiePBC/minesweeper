@@ -216,11 +216,13 @@ class MinesweeperAI():
         # 4) mark any additional cells as safe or as mines
         #    if it can be concluded based on the AI's knowledge base
 
-        safes_found = set(safe for safe in new_sentence.known_safes())
-        self.mark_safe(safe for safe in safes_found)
+        safes_found = set(new_sentence.known_safes())
+        for safe in safes_found:
+            self.mark_safe(safe)
 
-        mines_found = set(mine for mine in new_sentence.known_mines())
-        self.mark_mine(mine for mine in mines_found)
+        mines_found = set(new_sentence.known_mines())
+        for mine in mines_found:
+            self.mark_safe(mine)
 
         # 5) add any new sentences to the AI's knowledge base
         #    if they can be inferred from existing knowledge
@@ -259,10 +261,11 @@ class MinesweeperAI():
             1) have not already been chosen, and
             2) are not known to be mines
         """
-
+        possible_cells: list[tuple[int, int]] = []
         for i in range(self.height):
             for j in range(self.width):
                 if (i, j) not in self.mines and (i, j) not in self.moves_made:
-                    return (i, j)
-
+                    possible_cells.append((i, j))
+        if possible_cells:
+            return random.choice(possible_cells)
         return None
