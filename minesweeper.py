@@ -1,5 +1,6 @@
 import itertools
 import random
+from typing import Optional
 
 
 class Minesweeper():
@@ -193,20 +194,48 @@ class MinesweeperAI():
         """
         Called when the Minesweeper board tells us, for a given
         safe cell, how many neighboring cells have mines in them.
-
-        This function should:
-            1) mark the cell as a move that has been made
-            2) mark the cell as safe
-            3) add a new sentence to the AI's knowledge base
-               based on the value of `cell` and `count`
-            4) mark any additional cells as safe or as mines
-               if it can be concluded based on the AI's knowledge base
-            5) add any new sentences to the AI's knowledge base
-               if they can be inferred from existing knowledge
         """
-        raise NotImplementedError
 
-    def make_safe_move(self):
+        # 1) mark the cell as a move that has been made
+        self.moves_made.add(cell)
+        # 2) mark the cell as safe
+        self.mark_safe(cell)
+        # 3) add a new sentence to the AI's knowledge base
+        #    based on the value of `cell` and `count`
+        #    (i.e., a sentence consisting of all cells neighboring `cell`)
+
+        neighbors = set()
+        for i in range(max(cell[0] - 1, 0), min(cell[0] + 2, self.height)):
+            for j in range(max(cell[1] - 1, 0), min(cell[1] + 2, self.height)):
+                if (i,j) != cell:
+                    neighbors.add((i, j))
+
+        new_sentence = Sentence(neighbors, count)
+        self.knowledge.append(new_sentence)
+
+        # 4) mark any additional cells as safe or as mines
+        #    if it can be concluded based on the AI's knowledge base
+
+        safes_found = set(safe for safe in new_sentence.known_safes())
+        self.mark_safe(safe for safe in safes_found)
+
+        mines_found = set(mine for mine in new_sentence.known_mines())
+        self.mark_mine(mine for mine in mines_found)
+
+        # 5) add any new sentences to the AI's knowledge base
+        #    if they can be inferred from existing knowledge
+
+        if safes_found:
+            neighburing_possible_mines = neighbors - safes_found
+            new_sentence = Sentence(neighburing_possible_mines, count - len(safes_found))
+
+        if mines_found:
+            neighburing_possible_mines = neighbors - mines_found
+            new_sentence = Sentence(neighburing_possible_mines, count - len(mines_found))
+
+
+
+    def make_safe_move(self) -> Optional[tuple[int, int]]:
         """
         Returns a safe cell to choose on the Minesweeper board.
         The move must be known to be safe, and not already a move
@@ -215,13 +244,25 @@ class MinesweeperAI():
         This function may use the knowledge in self.mines, self.safes
         and self.moves_made, but should not modify any of those values.
         """
-        raise NotImplementedError
 
-    def make_random_move(self):
+        for i in range(self.height):
+            for j in range(self.width):
+                if (i, j) in self.safes and (i, j) not in self.moves_made:
+                    return (i, j)
+
+        return None
+
+    def make_random_move(self) -> Optional[tuple[int, int]]:
         """
         Returns a move to make on the Minesweeper board.
         Should choose randomly among cells that:
             1) have not already been chosen, and
             2) are not known to be mines
         """
-        raise NotImplementedError
+
+        for i in range(self.height):
+            for j in range(self.width):
+                if (i, j) not in self.mines and (i, j) not in self.moves_made:
+                    return (i, j)
+
+        return None
