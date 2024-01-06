@@ -1,4 +1,3 @@
-import itertools
 import random
 from typing import Optional
 
@@ -195,7 +194,6 @@ class MinesweeperAI():
         Called when the Minesweeper board tells us, for a given
         safe cell, how many neighboring cells have mines in them.
         """
-
         # 1) mark the cell as a move that has been made
         self.moves_made.add(cell)
         # 2) mark the cell as safe
@@ -204,13 +202,19 @@ class MinesweeperAI():
         #    based on the value of `cell` and `count`
         #    (i.e., a sentence consisting of all cells neighboring `cell`)
 
-        neighbors = set()
-        for i in range(max(cell[0] - 1, 0), min(cell[0] + 2, self.height)):
-            for j in range(max(cell[1] - 1, 0), min(cell[1] + 2, self.height)):
-                if (i,j) != cell:
-                    neighbors.add((i, j))
+        # for all neighbouring cells, if they are not already safe, add them to the sentence
 
-        new_sentence = Sentence(neighbors, count)
+        x_index = cell[0]
+        y_index = cell[1]
+
+        neighbouring_cells = [(x_index - 1, y_index - 1), (x_index - 1, y_index), (x_index - 1, y_index + 1),
+                                (x_index, y_index - 1), (x_index, y_index + 1),
+                                (x_index + 1, y_index - 1), (x_index + 1, y_index), (x_index + 1, y_index + 1)]
+
+        valid_neighbouring_cells = [neighbour for neighbour in neighbouring_cells \
+                                    if 0 <= neighbour[0] < self.height and 0 <= neighbour[1] < self.width]
+
+        new_sentence = Sentence(valid_neighbouring_cells, count)
         self.knowledge.append(new_sentence)
 
         # 4) mark any additional cells as safe or as mines
@@ -222,18 +226,18 @@ class MinesweeperAI():
 
         mines_found = set(new_sentence.known_mines())
         for mine in mines_found:
-            self.mark_safe(mine)
+            self.mark_mine(mine)
 
         # 5) add any new sentences to the AI's knowledge base
         #    if they can be inferred from existing knowledge
 
         if safes_found:
-            neighburing_possible_mines = neighbors - safes_found
-            new_sentence = Sentence(neighburing_possible_mines, count - len(safes_found))
+            neighbouring_possible_safes = set(valid_neighbouring_cells) - safes_found
+            self.knowledge.append(Sentence(neighbouring_possible_safes, count - len(safes_found)))
 
         if mines_found:
-            neighburing_possible_mines = neighbors - mines_found
-            new_sentence = Sentence(neighburing_possible_mines, count - len(mines_found))
+            neighbouring_possible_mines = set(valid_neighbouring_cells) - mines_found
+            self.knowledge.append(Sentence(neighbouring_possible_mines, count - len(mines_found)))
 
 
 
