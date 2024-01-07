@@ -189,75 +189,80 @@ class MinesweeperAI():
         for sentence in self.knowledge:
             sentence.mark_safe(cell)
 
-    def add_knowledge(self, cell, count):
+    def update_known_cells(self):
         """
-        Called when the Minesweeper board tells us, for a given
-        safe cell, how many neighboring cells have mines in them.
+        Using the knowledge base, update any cells which are known to be safe or mines.
         """
-
-        # mark the cell as one of the moves made
-        self.moves_made.add(cell)
-
-        # mark the cell as a safe cell, updating any sentences that contain the cell as well
-        self.mark_safe(cell)
-
-        # add a new sentence to the AI’s knowledge base
-        # to indicate that count of the cell’s neighbors are mines.
-        x_index, y_index = cell
-        neighbour_cells = [(x_index - 1, y_index - 1), (x_index - 1, y_index), (x_index - 1, y_index + 1),
-                            (x_index, y_index - 1), (x_index, y_index + 1),
-                            (x_index + 1, y_index - 1), (x_index + 1, y_index), (x_index + 1, y_index + 1)]
-        valid_neighbour_cells = [n for n in neighbour_cells if 0 <= n[0] < self.height and 0 <= n[1] < self.width]
-
-        undetermined_neighbour_cells = [n for n in valid_neighbour_cells if not (n in self.mines or n in  self.safes)]
-        undetermined_neighbour_cell_count = count - len([n for n in valid_neighbour_cells if n in self.mines])
-
-        new_sentence = Sentence(undetermined_neighbour_cells, undetermined_neighbour_cell_count)
-
-        # add the new sentence to the AI’s knowledge base
-        self.knowledge.append(new_sentence)
-
-        # mark any additional cells as safe or as mines
-        # if it can be concluded based on the AI’s knowledge base
-        # that they must be safe or must be mines.
-
-        pre_existing_knowledge = self.knowledge.copy()
-
-        for sentence in self.knowledge.copy():
-            for cell in sentence.known_mines().copy():
-                self.mark_mine(cell)
-            for cell in sentence.known_safes().copy():
-                self.mark_safe(cell)
-
-        # add any new sentences to the AI’s knowledge base
-        # if they can be inferred from existing knowledge.
-
-        for sentence in pre_existing_knowledge:
-            for other_sentence in pre_existing_knowledge:
-                if sentence != other_sentence:
-                    if sentence.cells.issubset(other_sentence.cells):
-                        new_cells = other_sentence.cells - sentence.cells
-                        new_count = other_sentence.count - sentence.count
-
-                        cells_assigned_already = set()
-                        for cell in new_cells.copy():
-                            if cell in self.mines:
-                                cells_assigned_already.add(cell)
-                                new_count -= 1
-                            if cell in self.safes:
-                                cells_assigned_already.add(cell)
-                        new_cells = new_cells - cells_assigned_already
-                        new_sentence = Sentence(new_cells, new_count)
-                        if new_sentence not in self.knowledge:
-                            self.knowledge.append(new_sentence)
-
-
         for sentence in self.knowledge:
             for cell in sentence.known_mines().copy():
                 self.mark_mine(cell)
             for cell in sentence.known_safes().copy():
                 self.mark_safe(cell)
 
+    def create_simplest_sentence(self, sentence, other_sentence) -> Sentence:
+        """
+        Creates the simplest sentence inferred from two sentences
+        by removing the cells that are known to be safe or mines.
+        """
+
+        cells_subset = set(other_sentence.cells) - set(sentence.cells)
+        count_of_subset = other_sentence.count - sentence.count
+
+        subset, count = self.create_simplest_cell_subset(cells_subset, count_of_subset)
+        return Sentence(subset, count)
+
+    def create_simplest_cell_subset(self, cells, count) -> \
+            tuple[set[tuple[int, int]], int]:
+        """
+        Creates the simplest cell subset inferred from a set of cells
+        """
+
+        cells_to_assign = set(n for n in cells if not (n in self.mines or n in self.safes))
+        count_of_subset = count - len([n for n in cells if n in self.mines])
+
+        return cells_to_assign, count_of_subset
+
+    def get_neighbour_cells(self, cell) -> list[tuple[int, int]]:
+        """
+        Returns the list of neighbour cells of a given cell,
+        constrained by the specified grid dimensions.
+        """
+        x_index, y_index = cell
+        neighbour_cells = [(x_index - 1, y_index - 1), (x_index - 1, y_index), (x_index - 1, y_index + 1),
+                           (x_index, y_index - 1), (x_index, y_index + 1),
+                           (x_index + 1, y_index - 1), (x_index + 1, y_index), (x_index + 1, y_index + 1)]
+        # remove cells that are not on the board
+        valid_neighbour_cells = [n for n in neighbour_cells if 0 <= n[0] < self.height and 0 <= n[1] < self.width]
+
+        return valid_neighbour_cells
+
+    def add_knowledge(self, cell, count):
+        """
+        Called when the Minesweeper board tells us, for a given
+        safe cell, how many neighboring cells have mines in them.
+        """
+
+        self.moves_made.add(cell)
+        self.mark_safe(cell)
+
+        neighbour_cells = self.get_neighbour_cells(cell)
+        subset_neighbour_cells, subset_count = self.create_simplest_cell_subset(neighbour_cells, count)
+        new_sentence = Sentence(subset_neighbour_cells, subset_count)
+        self.knowledge.append(new_sentence)
+        self.update_known_cells()
+
+        # add any new sentences to the AI’s knowledge base
+        # if they can be inferred from existing knowledge.
+        pre_existing_knowledge = self.knowledge.copy()
+        for sentence in pre_existing_knowledge:
+            for other_sentence in pre_existing_knowledge:
+                if sentence != other_sentence and \
+                        sentence.cells.issubset(other_sentence.cells):
+
+                    new_sentence = self.create_simplest_sentence(sentence, other_sentence)
+                    if new_sentence not in self.knowledge:
+                        self.knowledge.append(new_sentence)
+        self.update_known_cells()
 
     def make_safe_move(self) -> Optional[tuple[int, int]]:
         """
