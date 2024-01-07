@@ -111,7 +111,7 @@ class Sentence():
         """
         # If the number of cells in the sentence is equal to the count,
         # then all cells in the sentence must be mines.
-        if len(self.cells) == self.count:
+        if len(self.cells) == self.count and self.count > 0:
             return self.cells
         # Otherwise, we cannot infer that any cells are mines.
         else:
@@ -194,51 +194,69 @@ class MinesweeperAI():
         Called when the Minesweeper board tells us, for a given
         safe cell, how many neighboring cells have mines in them.
         """
-        # 1) mark the cell as a move that has been made
+
+        # mark the cell as one of the moves made
         self.moves_made.add(cell)
-        # 2) mark the cell as safe
+
+        # mark the cell as a safe cell, updating any sentences that contain the cell as well
         self.mark_safe(cell)
-        # 3) add a new sentence to the AI's knowledge base
-        #    based on the value of `cell` and `count`
-        #    (i.e., a sentence consisting of all cells neighboring `cell`)
 
-        # for all neighbouring cells, if they are not already safe, add them to the sentence
+        # add a new sentence to the AI’s knowledge base
+        # to indicate that count of the cell’s neighbors are mines.
+        x_index, y_index = cell
+        neighbour_cells = [(x_index - 1, y_index - 1), (x_index - 1, y_index), (x_index - 1, y_index + 1),
+                            (x_index, y_index - 1), (x_index, y_index + 1),
+                            (x_index + 1, y_index - 1), (x_index + 1, y_index), (x_index + 1, y_index + 1)]
+        valid_neighbour_cells = [n for n in neighbour_cells if 0 <= n[0] < self.height and 0 <= n[1] < self.width]
 
-        x_index = cell[0]
-        y_index = cell[1]
+        undetermined_neighbour_cells = [n for n in valid_neighbour_cells if not (n in self.mines or n in  self.safes)]
+        undetermined_neighbour_cell_count = count - len([n for n in valid_neighbour_cells if n in self.mines])
 
-        neighbouring_cells = [(x_index - 1, y_index - 1), (x_index - 1, y_index), (x_index - 1, y_index + 1),
-                                (x_index, y_index - 1), (x_index, y_index + 1),
-                                (x_index + 1, y_index - 1), (x_index + 1, y_index), (x_index + 1, y_index + 1)]
+        new_sentence = Sentence(undetermined_neighbour_cells, undetermined_neighbour_cell_count)
 
-        valid_neighbouring_cells = [neighbour for neighbour in neighbouring_cells \
-                                    if 0 <= neighbour[0] < self.height and 0 <= neighbour[1] < self.width]
-
-        new_sentence = Sentence(valid_neighbouring_cells, count)
+        # add the new sentence to the AI’s knowledge base
         self.knowledge.append(new_sentence)
 
-        # 4) mark any additional cells as safe or as mines
-        #    if it can be concluded based on the AI's knowledge base
+        # mark any additional cells as safe or as mines
+        # if it can be concluded based on the AI’s knowledge base
+        # that they must be safe or must be mines.
 
-        safes_found = set(new_sentence.known_safes())
-        for safe in safes_found:
-            self.mark_safe(safe)
+        pre_existing_knowledge = self.knowledge.copy()
 
-        mines_found = set(new_sentence.known_mines())
-        for mine in mines_found:
-            self.mark_mine(mine)
+        for sentence in self.knowledge.copy():
+            for cell in sentence.known_mines().copy():
+                self.mark_mine(cell)
+            for cell in sentence.known_safes().copy():
+                self.mark_safe(cell)
 
-        # 5) add any new sentences to the AI's knowledge base
-        #    if they can be inferred from existing knowledge
+        # add any new sentences to the AI’s knowledge base
+        # if they can be inferred from existing knowledge.
 
-        if safes_found:
-            neighbouring_possible_safes = set(valid_neighbouring_cells) - safes_found
-            self.knowledge.append(Sentence(neighbouring_possible_safes, count - len(safes_found)))
+        for sentence in pre_existing_knowledge:
+            for other_sentence in pre_existing_knowledge:
+                if sentence != other_sentence:
+                    if sentence.cells.issubset(other_sentence.cells):
+                        new_cells = other_sentence.cells - sentence.cells
+                        new_count = other_sentence.count - sentence.count
 
-        if mines_found:
-            neighbouring_possible_mines = set(valid_neighbouring_cells) - mines_found
-            self.knowledge.append(Sentence(neighbouring_possible_mines, count - len(mines_found)))
+                        cells_assigned_already = set()
+                        for cell in new_cells.copy():
+                            if cell in self.mines:
+                                cells_assigned_already.add(cell)
+                                new_count -= 1
+                            if cell in self.safes:
+                                cells_assigned_already.add(cell)
+                        new_cells = new_cells - cells_assigned_already
+                        new_sentence = Sentence(new_cells, new_count)
+                        if new_sentence not in self.knowledge:
+                            self.knowledge.append(new_sentence)
 
+
+        for sentence in self.knowledge:
+            for cell in sentence.known_mines().copy():
+                self.mark_mine(cell)
+            for cell in sentence.known_safes().copy():
+                self.mark_safe(cell)
 
 
     def make_safe_move(self) -> Optional[tuple[int, int]]:
